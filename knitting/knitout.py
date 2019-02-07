@@ -1,9 +1,8 @@
 from sys import stdout
 
 class Knitout:
-    def __init__(self, out_file=stdout, hooks=list(range(10)), carriers=[6], gauge=15):
+    def __init__(self, out_file=stdout, carriers=[6], gauge=15):
         self.carriers = carriers
-        self.hooks = hooks
         self.rack_pos = 0
         file=self.out_file = out_file
         print(';!knitout-2', file=self.out_file)
@@ -24,19 +23,13 @@ class Knitout:
         print('releasehook ' + str(self.carriers[carrier]), file=self.out_file)
 
     def tuck(self, direction, bed, hook, carrier):
-        print('tuck ' + direction + ' ' + bed + str(self.hooks[hook]) + ' ' + str(self.carriers[carrier]), file=self.out_file)
+        print('tuck ' + direction + ' ' + bed + str(hook) + ' ' + str(self.carriers[carrier]), file=self.out_file)
 
     def miss(self, direction, bed, hook, carrier):
-        print('miss ' + direction + ' ' + bed + str(self.hooks[hook]) + ' ' + str(self.carriers[carrier]), file=self.out_file)
-
-    def miss_end(self, direction, bed, carrier):
-        if direction == '+':
-            print('miss ' + direction + ' ' + bed + str(self.hooks[-1]+1) + ' ' + str(self.carriers[carrier]), file=self.out_file)
-        else:
-            print('miss ' + direction + ' ' + bed + str(self.hooks[0]-1) + ' ' + str(self.carriers[carrier]), file=self.out_file)
+        print('miss ' + direction + ' ' + bed + str(hook) + ' ' + str(self.carriers[carrier]), file=self.out_file)
 
     def xfer(self, from_bed, from_hook, to_bed, to_hook):
-        print('xfer ' + from_bed + str(self.hooks[from_hook]) + ' ' + to_bed + str(self.hooks[to_hook]), file=self.out_file)
+        print('xfer ' + from_bed + str(from_hook) + ' ' + to_bed + str(to_hook), file=self.out_file)
 
     # xfer with hook given relative to from_bed
     def from_xfer(self, from_bed, to_bed, hook):
@@ -52,7 +45,7 @@ class Knitout:
         self.xfer(from_bed, hook - self.rack_pos, to_bed, hook)
 
     def knit(self, direction, bed, hook, carrier):
-        print('knit ' + direction + ' ' + bed + str(self.hooks[hook]) + ' ' + str(self.carriers[carrier]), file=self.out_file)
+        print('knit ' + direction + ' ' + bed + str(hook) + ' ' + str(self.carriers[carrier]), file=self.out_file)
 
     def knits(self, direction, bed, hooks, carriers):
         for (hook, carrier) in zip(hooks, carriers):
@@ -62,33 +55,33 @@ class Knitout:
         self.rack_pos = n;
         print('rack ' + str(n), file=self.out_file)
 
-    def cast_on(self, bed):
+    def cast_on(self, bed, start, end, spacing=1):
         self.inhook(0)
-        for i in range(len(self.hooks)-1, 0, -2):
+        for i in range(end, start-1, -2 * spacing):
             self.tuck('-', bed, i, 0)
 
-        if len(self.hooks) % 2 == 0:
-            start = 0
-            self.miss('-', bed, 0, 0)
+        if (end - start + 1) % 2 == 0:
+            row_start = start
+            self.miss('-', bed, start, 0)
         else:
-            start = 1
+            row_start = start + spacing 
 
-        for i in range(start, len(self.hooks), 2):
+        for i in range(row_start, end, 2 * spacing):
             self.knit('+', bed, i, 0)
 
-        self.miss('+', bed, len(self.hooks)-1, 0)
+        self.miss('+', bed, end + 1, 0)
         self.releasehook(0)
 
         for carrier in range(1, len(self.carriers)):
             self.inhook(carrier)
-            for i in range(len(self.hooks)-1, -1, -1):
+            for i in range(end, start-1, -spacing):
                 self.knit('-', bed, i, carrier)
-            for i in range(len(self.hooks)):
+            for i in range(start, end+1, spacing):
                 self.knit('+', bed, i, carrier)
             self.releasehook(carrier)
 
-
-    def cast_off(self, direction, bed, carrier):
+    # start = lower index, end = higher index
+    def cast_off(self, direction, bed, carrier, start, end, spacing=1):
         if (bed == 'f'):
             opp = 'b'
         elif (bed == 'b'):
@@ -97,21 +90,21 @@ class Knitout:
             raise Exception('invalid bed: ' + bed)
 
         if (direction == '+'):
-            for i in range(0, len(self.hooks)-1):
+            for i in range(start, end, spacing):
                 self.from_xfer(bed, opp, i)
-                self.rack(1)
+                self.rack(spacing)
                 self.from_xfer(opp, bed, i)
                 self.rack(0)
-                self.knit('+', bed, i+1, carrier)
+                self.knit('+', bed, i+spacing, carrier)
                 if i % 15 == 0:
                     self.tuck('-', opp, i, carrier)
         elif (direction == '-'):
-            for i in range(len(self.hooks)-1, 0, -1):
+            for i in range(end, start, -spacing):
                 self.from_xfer(bed, opp, i)
-                self.rack(-1)
+                self.rack(-spacing)
                 self.from_xfer(opp, bed, i)
                 self.rack(0)
-                self.knit('-', bed, i-1, carrier)
+                self.knit('-', bed, i-spacing, carrier)
                 if i % 15 == 0:
                     self.tuck('+', opp, i, carrier)
         else:

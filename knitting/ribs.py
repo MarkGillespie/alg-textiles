@@ -2,12 +2,13 @@ from knitout import Knitout
 from sys import stdout, stderr
 
 class RibbedKnitter:
-    def __init__(self, out_file=stdout, hooks=list(range(10)), carriers=[6], gauge=15):
-        self.k = Knitout(out_file=out_file, hooks=hooks, carriers=carriers, gauge=gauge)
-        self.n_hooks = len(hooks)
+    def __init__(self, n_hooks=10, out_file=stdout, carriers=[6], gauge=15, spacing=1):
+        self.k = Knitout(out_file=out_file, carriers=carriers, gauge=gauge)
+        self.n_hooks = n_hooks;
+        self.spacing = spacing
 
     def cast_on(self):
-        self.k.cast_on('f')
+        self.k.cast_on('f', 0, self.spacing * (self.n_hooks-1), self.spacing)
 
         # True = knit, False = purl
         self.stitches        = [True for _ in range(self.n_hooks)]
@@ -27,7 +28,7 @@ class RibbedKnitter:
         else:
             direction = '-'
 
-        self.k.cast_off(direction, 'f', carrier)
+        self.k.cast_off(direction, 'f', carrier, 0, self.n_hooks, self.spacing)
 
     def end(self):
         for i in range(len(self.k.carriers)):
@@ -42,22 +43,22 @@ class RibbedKnitter:
             raise Exception('Row length ' + str(len(self.stitches)) + ' not equal to number of hooks ' + str(self.n_hooks))
         for i in range(self.n_hooks):
             if self.stitches[i] and self.stitch_beds[i] == 'b':
-                self.k.from_xfer('b', 'f', i)
+                self.k.from_xfer('b', 'f', i * self.spacing)
                 self.stitch_beds[i] = 'f'
             elif not self.stitches[i] and self.stitch_beds[i] == 'f':
-                self.k.from_xfer('f', 'b', i)
+                self.k.from_xfer('f', 'b', i * self.spacing)
                 self.stitch_beds[i] = 'b'
 
     def move_all_to_front(self):
         for i in range(self.n_hooks):
             if self.stitch_beds[i] == 'b':
-                self.k.from_xfer('b', 'f', i)
+                self.k.from_xfer('b', 'f', i * self.spacing)
                 self.stitch_beds[i] = 'f'
 
     def move_carrier_stitches_to_correct_bed(self, carrier):
         for i in range(self.n_hooks):
             if self.stitch_carriers[i] == carrier and not self.stitches[i]:
-                self.k.from_xfer('f', 'b', i)
+                self.k.from_xfer('f', 'b', i * self.spacing)
                 self.stitch_beds[i] = 'b'
 
 
@@ -81,23 +82,23 @@ class RibbedKnitter:
             if self.direction_is_positive:
                 for i in range(self.n_hooks):
                     if self.stitch_carriers[i] == carrier:
-                        self.k.knit('+', self.stitch_beds[i], i, carrier)
-                self.k.miss_end('+', 'f', carrier)
+                        self.k.knit('+', self.stitch_beds[i], i * self.spacing, carrier)
+                self.k.miss('+', 'f', self.n_hooks * self.spacing, carrier)
             else:
                 for i in range(self.n_hooks-1, -1, -1):
                     if self.stitch_carriers[i] == carrier:
-                        self.k.knit('-', self.stitch_beds[i], i, carrier)
-                self.k.miss_end('-', 'f', carrier)
+                        self.k.knit('-', self.stitch_beds[i], i * self.spacing, carrier)
+                self.k.miss('-', 'f', -1, carrier)
         self.direction_is_positive = not self.direction_is_positive
 
     def knit_monochromatic_row(self, carrier):
         self.perform_transfers()
         if self.direction_is_positive:
             for i in range(self.n_hooks):
-                self.k.knit('+', self.stitch_beds[i], i, carrier)
+                self.k.knit('+', self.stitch_beds[i], i * self.spacing, carrier)
         else:
             for i in range(self.n_hooks-1, -1, -1):
-                self.k.knit('-', self.stitch_beds[i], i, carrier)
+                self.k.knit('-', self.stitch_beds[i], i * self.spacing, carrier)
         self.direction_is_positive = not self.direction_is_positive
 
     def knit(self, n=1, carrier=0):
@@ -109,9 +110,11 @@ class RibbedKnitter:
         self.stitch_carriers += n * [carrier]
 
 class CabledKnitter(RibbedKnitter):
-    def __init__(self, out_file=stdout, hooks=list(range(10)), carriers=[6], gauge=15):
-        super().__init__(out_file=out_file, hooks=hooks, carriers=carriers, gauge=gauge)
+    def __init__(self, n_hooks=10, out_file=stdout, carriers=[6], gauge=15):
+        # spacing must be 1 so cables don't stretch too far
+        super().__init__(n_hooks=n_hooks, out_file=out_file, carriers=carriers, gauge=gauge, spacing=1)
         self.swaps = []
+        self.spacing = 1
 
     def new_row(self):
         super().new_row()
@@ -142,11 +145,11 @@ class CabledKnitter(RibbedKnitter):
     def swap_stitches(self, front_indices, back_indices):
         (front_indices, back_indices) = self.validate_swap(front_indices, back_indices)
         if front_indices[0] < back_indices[0]:
-            front_rack =  len(back_indices)
-            back_rack  = -len(front_indices)
+            front_rack =  self.spacing * len(back_indices)
+            back_rack  = -self.spacing * len(front_indices)
         else:
-            front_rack = -len(back_indices)
-            back_rack  =  len(front_indices)
+            front_rack = -self.spacing * len(back_indices)
+            back_rack  =  self.spacing * len(front_indices)
         self.swaps.append((front_indices, front_rack, back_indices, back_rack));
 
     def perform_swaps(self):
@@ -185,17 +188,17 @@ class CabledKnitter(RibbedKnitter):
             for i in swaps_from_rack[rack_position]:
                 (front_indices, front_rack, back_indices, back_rack) = self.swaps[i]
                 if front_rack == rack_position:
-                    self.k.from_xfers('b', 'f', front_indices)
+                    self.k.from_xfers('b', 'f', [i * self.spacing for i in front_indices])
                     done_front[i] = True
                 elif done_front[i]:
-                    self.k.from_xfers('b', 'f', back_indices)
+                    self.k.from_xfers('b', 'f', [i * self.spacing for i in back_indices])
                     done_back[i] = True
         for rack_position in rack_positions:
             self.k.rack(rack_position)
             for i in swaps_from_rack[rack_position]:
                 (front_indices, front_rack, back_indices, back_rack) = self.swaps[i]
                 if back_rack == rack_position and not done_back[i]:
-                    self.k.from_xfers('b', 'f', back_indices)
+                    self.k.from_xfers('b', 'f', [i * self.spacing for i in back_indices])
                     done_back[i] = True
 
         self.k.rack(0)

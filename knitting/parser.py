@@ -133,7 +133,7 @@ def parse_cable_file(file_name):
 
         for row in reader:
             if knitter is None:
-                knitter = CabledKnitter(hooks=list(range(1, len(row)+1)), carriers=[3, 6])
+                knitter = CabledKnitter(n_hooks=len(row), carriers=[3, 6])
                 knitter.cast_on()
             knit_row(knitter, row)
         knitter.end()
