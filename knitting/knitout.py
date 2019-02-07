@@ -29,6 +29,12 @@ class Knitout:
     def miss(self, direction, bed, hook, carrier):
         print('miss ' + direction + ' ' + bed + str(self.hooks[hook]) + ' ' + str(self.carriers[carrier]), file=self.out_file)
 
+    def miss_end(self, direction, bed, carrier):
+        if direction == '+':
+            print('miss ' + direction + ' ' + bed + str(self.hooks[-1]+1) + ' ' + str(self.carriers[carrier]), file=self.out_file)
+        else:
+            print('miss ' + direction + ' ' + bed + str(self.hooks[0]-1) + ' ' + str(self.carriers[carrier]), file=self.out_file)
+
     def xfer(self, from_bed, from_hook, to_bed, to_hook):
         print('xfer ' + from_bed + str(self.hooks[from_hook]) + ' ' + to_bed + str(self.hooks[to_hook]), file=self.out_file)
 
@@ -56,23 +62,31 @@ class Knitout:
         self.rack_pos = n;
         print('rack ' + str(n), file=self.out_file)
 
-    def cast_on(self, bed, carrier):
-        self.inhook(carrier)
+    def cast_on(self, bed):
+        self.inhook(0)
         for i in range(len(self.hooks)-1, 0, -2):
-            self.tuck('-', bed, i, carrier)
+            self.tuck('-', bed, i, 0)
 
         if len(self.hooks) % 2 == 0:
             start = 0
-            self.miss('-', bed, 0, carrier)
+            self.miss('-', bed, 0, 0)
         else:
             start = 1
 
         for i in range(start, len(self.hooks), 2):
-            self.knit('+', bed, i, carrier)
+            self.knit('+', bed, i, 0)
 
-        self.miss('+', bed, len(self.hooks)-1, carrier)
+        self.miss('+', bed, len(self.hooks)-1, 0)
+        self.releasehook(0)
 
-        self.releasehook(carrier)
+        for carrier in range(1, len(self.carriers)):
+            self.inhook(carrier)
+            for i in range(len(self.hooks)-1, -1, -1):
+                self.knit('-', bed, i, carrier)
+            for i in range(len(self.hooks)):
+                self.knit('+', bed, i, carrier)
+            self.releasehook(carrier)
+
 
     def cast_off(self, direction, bed, carrier):
         if (bed == 'f'):

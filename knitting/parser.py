@@ -99,26 +99,26 @@ def knit_row(knitter, row):
     stitches = parse_row(row)
     for (stitch, width, start_index) in stitches:
         if stitch == Stitch.knit:
-            knitter.knit(width)
+            knitter.knit(width, 0)
         elif stitch == Stitch.purl:
-            knitter.purl(width)
+            knitter.purl(width, 1)
         elif stitch == Stitch.knit_left:
-            knitter.knit(width)
+            knitter.knit(width, 0)
             knit_indices = list(range(start_index, start_index + width))
             knitter.swap_stitches(knit_indices, [start_index - 1])
         elif stitch == Stitch.knit_right:
-            knitter.knit(width)
+            knitter.knit(width, 0)
             knit_indices = list(range(start_index, start_index + width))
             knitter.swap_stitches(knit_indices, [start_index + width])
         elif stitch == Stitch.swap_left_over:
             (left_width, right_width) = width
-            knitter.knit(left_width + right_width)
+            knitter.knit(left_width + right_width, 0)
             left_indices = list(range(start_index, start_index + left_width))
             right_indices = list(range(start_index + left_width, start_index + left_width + right_width))
             knitter.swap_stitches(left_indices, right_indices)
         elif stitch == Stitch.swap_right_over:
             (left_width, right_width) = width
-            knitter.knit(left_width + right_width)
+            knitter.knit(left_width + right_width, 0)
             left_indices = list(range(start_index, start_index + left_width))
             right_indices = list(range(start_index + left_width, start_index + left_width + right_width))
             knitter.swap_stitches(right_indices, left_indices)
@@ -133,7 +133,7 @@ def parse_cable_file(file_name):
 
         for row in reader:
             if knitter is None:
-                knitter = CabledKnitter(hooks=list(range(1, len(row)+1)), carriers=[3])
+                knitter = CabledKnitter(hooks=list(range(1, len(row)+1)), carriers=[3, 6])
                 knitter.cast_on()
             knit_row(knitter, row)
         knitter.end()

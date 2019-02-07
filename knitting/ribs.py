@@ -5,12 +5,9 @@ class RibbedKnitter:
     def __init__(self, out_file=stdout, hooks=list(range(10)), carriers=[6], gauge=15):
         self.k = Knitout(out_file=out_file, hooks=hooks, carriers=carriers, gauge=gauge)
         self.n_hooks = len(hooks)
-        self.carriers_inhooked = {carrier: False for carrier in carriers}
 
-    def cast_on(self, carrier=0):
-        self.k.cast_on('f', carrier)
-
-        self.carriers_inhooked[carrier]  = True
+    def cast_on(self):
+        self.k.cast_on('f')
 
         # True = knit, False = purl
         self.stitches        = [True for _ in range(self.n_hooks)]
@@ -22,7 +19,7 @@ class RibbedKnitter:
 
     def cast_off(self, carrier=0):
         for other_carrier in self.k.carriers:
-            if other_carrier != carrier and self.carriers_inhooked[other_carrier]:
+            if other_carrier != carrier:
                 self.k.outhook(self.k.carriers.index(other_carrier))
 
         if self.direction_is_positive:
@@ -51,26 +48,56 @@ class RibbedKnitter:
                 self.k.from_xfer('f', 'b', i)
                 self.stitch_beds[i] = 'b'
 
+    def move_all_to_front(self):
+        for i in range(self.n_hooks):
+            if self.stitch_beds[i] == 'b':
+                self.k.from_xfer('b', 'f', i)
+                self.stitch_beds[i] = 'f'
+
+    def move_carrier_stitches_to_correct_bed(self, carrier):
+        for i in range(self.n_hooks):
+            if self.stitch_carriers[i] == carrier and not self.stitches[i]:
+                self.k.from_xfer('f', 'b', i)
+                self.stitch_beds[i] = 'b'
+
+
     def knit_row(self):
         if len(self.stitches) != self.n_hooks:
             raise Exception('Row length ' + str(len(self.stitches)) + ' not equal to number of hooks ' + str(self.n_hooks) + '\n ' + str(self.stitches))
+
+        if all(carrier == self.stitch_carriers[0] for carrier in self.stitch_carriers):
+            carrier = self.stitch_carriers[0]
+            self.knit_monochromatic_row(carrier)
+        else:
+            self.knit_polychromatic_row()
+
+
+    def knit_polychromatic_row(self):
+        carriers = list(set(self.stitch_carriers)) # dedupe
+        self.move_all_to_front()
+
+        for carrier in carriers:
+            self.move_carrier_stitches_to_correct_bed(carrier)
+            if self.direction_is_positive:
+                for i in range(self.n_hooks):
+                    if self.stitch_carriers[i] == carrier:
+                        self.k.knit('+', self.stitch_beds[i], i, carrier)
+                self.k.miss_end('+', 'f', carrier)
+            else:
+                for i in range(self.n_hooks-1, -1, -1):
+                    if self.stitch_carriers[i] == carrier:
+                        self.k.knit('-', self.stitch_beds[i], i, carrier)
+                self.k.miss_end('-', 'f', carrier)
+        self.direction_is_positive = not self.direction_is_positive
+
+    def knit_monochromatic_row(self, carrier):
         self.perform_transfers()
-
-        inhooked_carriers = []
-        for carrier in self.stitch_carriers:
-            if not self.carriers_inhooked[carrier]:
-                self.k.inhook(carrier)
-                inhooked_carriers.append(carrier)
-
-        if (self.direction_is_positive):
+        if self.direction_is_positive:
             for i in range(self.n_hooks):
-                self.k.knit('+', self.stitch_beds[i], i, self.stitch_carriers[i])
+                self.k.knit('+', self.stitch_beds[i], i, carrier)
         else:
             for i in range(self.n_hooks-1, -1, -1):
-                self.k.knit('-', self.stitch_beds[i], i, self.stitch_carriers[i])
-
-        for carrier in inhooked_carriers:
-            self.k.releasehook(carrier)
+                self.k.knit('-', self.stitch_beds[i], i, carrier)
         self.direction_is_positive = not self.direction_is_positive
 
     def knit(self, n=1, carrier=0):
