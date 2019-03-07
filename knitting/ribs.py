@@ -210,3 +210,7 @@ class CabledKnitter(RibbedKnitter):
         super().knit_row()
         self.perform_swaps()
         self.swaps = []
+
+    def just_do_swaps(self):
+        self.perform_swaps();
+        self.swaps = []

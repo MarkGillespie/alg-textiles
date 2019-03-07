@@ -1,4 +1,5 @@
 from sys import stdout
+from math import copysign
 
 class Knitout:
     def __init__(self, out_file=stdout, carriers=[6], gauge=15):
@@ -79,6 +80,39 @@ class Knitout:
             for i in range(start, end+1, spacing):
                 self.knit('+', bed, i, carrier)
             self.releasehook(carrier)
+
+    # TODO: fix spacing at ends
+    def cast_on_tube(self, start, end, spacing=1):
+        self.inhook(0)
+
+        back_offset = spacing-1
+        for i in range(end, start-1, -2 * spacing):
+            self.tuck('-', 'f', i, 0)
+
+        if (end - start + 1) % 2 == 0:
+            row_start = start
+            back_row_start = start + spacing
+            self.miss('-', 'f', start, 0)
+        else:
+            row_start = start + spacing 
+            back_row_start = start
+
+        for i in range(row_start, end, 2 * spacing):
+            self.tuck('+', 'b', i + back_offset, 0)
+
+        for i in range(end - spacing, start-1, -2 * spacing):
+            self.knit('-', 'f', i, 0)
+
+        for i in range(back_row_start, end, 2 * spacing):
+            self.knit('+', 'b', i + back_offset, 0)
+
+        for i in range(end, start-1, -spacing):
+            self.knit('-', 'f', i, 0)
+
+        for i in range(start, end+1, spacing):
+            self.knit('+', 'b', i + back_offset, 0)
+
+        self.releasehook(0)
 
     # start = lower index, end = higher index
     def cast_off(self, direction, bed, carrier, start, end, spacing=1):
