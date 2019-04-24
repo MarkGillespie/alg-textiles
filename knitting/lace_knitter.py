@@ -8,16 +8,20 @@ class LaceKnitter():
         self.carriers = carriers
         self.gauge = gauge
 
-        self.stitches_consumed   = 0
+        self.stitch_hooks        = []
+        self.behind              = []
+        self.current_hook        = 0
+        self.current_stitch      = 0
         self.stitch_carriers     = []
-        self.width_modifications = []
         self.k = Knitout(carriers=carriers, gauge=gauge, out_file=out_file)
 
     def new_row(self):
-        self.stitches_consumed   = 0
         self.stitch_carriers     = []
         self.stitches            = []
-        self.width_modifications = []
+        self.stitch_hooks        = []
+        self.current_hook        = 0
+        self.current_stitch      = 0
+        self.behind              = self.n * [False]
 
     def knit_row(self):
         self.perform_transfers()
@@ -45,72 +49,7 @@ class LaceKnitter():
         return (offset_amts, offset_stitches)
 
     def compute_offsets(self):
-        self.width_modifications += [(0, self.stitches_consumed, None)]
-        offsets = [0] * self.n
-        behind  = [False] * self.n
-
-        net_offset = 0
-        for i in range(len(self.width_modifications) - 1):
-            (amt, pos, front) = self.width_modifications[i]
-            (_,   end, _)     = self.width_modifications[i+1]
-            net_offset += amt
-
-            for j in range(pos, min(end + 1, self.n)):
-                offsets[j] = net_offset
-
-            if amt == -1:
-                if net_offset - amt > 0:
-                    offsets[pos] = net_offset
-                    if front == 'l':
-                        behind[pos]   = True
-                    elif front == 'r':
-                        behind[pos-1] = True
-                    else:
-                        raise Exception('front variable \'' + str(front) + '\' should be \'l\' or \'r\'')
-                else:
-                    offsets[pos]  = net_offset - amt
-                    if front == 'l':
-                        behind[pos+1] = True
-                    elif front == 'r':
-                        behind[pos]   = True
-                    else:
-                        raise Exception('front variable \'' + str(front) + '\' should be \'l\' or \'r\'')
-            elif amt == -2:
-                if net_offset - amt > 0:
-                    offsets[pos] = net_offset+1
-                    if front == 'l':
-                        behind[pos]   = True
-                        behind[pos+1] = True
-                    elif front == 'c':
-                        behind[pos-1] = True
-                        behind[pos+1] = True
-                    elif front == 'r':
-                        behind[pos-1] = True
-                        behind[pos]   = True
-                    else:
-                        raise Exception('front variable \'' + str(front) + '\' should be \'l\' or \'r\'')
-                else:
-                    offsets[pos]    = net_offset - amt
-                    offsets[pos+1]  = net_offset - amt - 1
-                    if front == 'l':
-                        behind[pos+1]  = True
-                    elif front == 'c':
-                        behind[pos]   = True
-                    elif front == 'r':
-                        behind[pos]   = True
-                    else:
-                        raise Exception('front variable \'' + str(front) + '\' should be \'l\' or \'r\'')
-            elif amt == 1:
-                if net_offset - amt >= 0:
-                    pass
-                else:
-                    if net_offset - amt == -2:
-                        offsets[pos] = 7#net_offset - amt
-                    else:
-                        offsets[pos] = net_offset - amt
-            else:
-                raise Exception('Invalid width: ' + str(amt))
-        return (offsets, behind)
+        return [self.stitch_hooks[i] - i for i in range(len(self.stitch_hooks))]
 
     # increases and decreases
     def perform_transfers(self):
@@ -119,7 +58,7 @@ class LaceKnitter():
         front_stitch_present = [False] * self.n
         back_stitch_waiting_list = [None] * self.n
 
-        (offsets, behind) = self.compute_offsets()
+        offsets = self.compute_offsets()
         (offset_amts, offset_stitches) = self.get_offset_to_stitch_map(offsets)
 
         # print(self.width_modifications, file=stderr)
@@ -136,7 +75,7 @@ class LaceKnitter():
                 self.k.rack(off)
                 back_stitches_to_fix = []
                 for stitch in offset_stitches[off]:
-                    if (not behind[stitch]) or front_stitch_present[stitch + off]:
+                    if (not self.behind[stitch]) or front_stitch_present[stitch + off]:
                         self.k.from_xfer('b', 'f', stitch)
                         front_stitch_present[stitch + off] = True
                         if back_stitch_waiting_list[stitch + off]:
@@ -156,37 +95,54 @@ class LaceKnitter():
             self.k.from_xfers('f', 'b', back_bed_stitches)
 
     def increase_knit(self, carrier=0):
-        self.width_modifications += [(+1, self.stitches_consumed, None)]
-
-        self.stitches          += [True]
-        self.stitch_carriers   += [carrier]
-        self.stitches_consumed += 1
+        self.current_hook += 1
 
     # front must be 'l' or 'r'
     def decrease_knit(self, front='l', carrier=0):
-        self.width_modifications += [(-1, self.stitches_consumed, front)]
-
         self.stitches          += [True]
         self.stitch_carriers   += [carrier]
-        self.stitches_consumed += 1
+        self.stitch_hooks      += 2 * [self.current_hook]
+        self.current_hook      += 1
+
+        if (front == 'l'):
+            self.behind[self.current_stitch + 1] = True
+        elif (front == 'r'):
+            self.behind[self.current_stitch + 0] = True
+
+        self.current_stitch    += 2
 
     # front must be 'l', 'c', or 'r'
     def decrease_two_knit(self, front='c', carrier=0):
-        self.width_modifications += [(-2, self.stitches_consumed, front)]
-
         self.stitches          += [True]
         self.stitch_carriers   += [carrier]
-        self.stitches_consumed += 1
+        self.stitch_hooks      += 3 * [self.current_hook]
+        self.current_hook      += 1
+
+        if (front == 'l'):
+            self.behind[self.current_stitch + 1] = True
+            self.behind[self.current_stitch + 2] = True
+        elif (front == 'c'):
+            self.behind[self.current_stitch + 0] = True
+            self.behind[self.current_stitch + 2] = True
+        elif (front == 'r'):
+            self.behind[self.current_stitch + 0] = True
+            self.behind[self.current_stitch + 1] = True
+
+        self.current_stitch    += 3
 
     def knit(self, n=1, carrier=0):
         self.stitches          += n * [True]
         self.stitch_carriers   += n * [carrier]
-        self.stitches_consumed += 1
+        self.stitch_hooks      += list(range(self.current_hook, self.current_hook + n))
+        self.current_hook      += n
+        self.current_stitch    += 1
 
     def purl(self, n=1, carrier=0):
         self.stitches          += n * [False]
         self.stitch_carriers   += n * [carrier]
-        self.stitches_consumed += 1
+        self.stitch_hooks      += list(range(self.current_hook, self.current_hook + n))
+        self.current_hook      += n
+        self.current_stitch    += 1
 
     def cast_on(self):
         self.k.cast_on('f', 0, self.n-1, 1)

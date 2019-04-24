@@ -42,6 +42,8 @@ for rep in range(reps):
         for c in row:
             if c == ' ':
                 lace.knit()
+            elif c == '-':
+                lace.purl()
             elif c == 'o':
                 lace.increase_knit()
             elif c == '/':

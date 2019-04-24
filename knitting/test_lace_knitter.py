@@ -9,6 +9,8 @@ def knit_pattern(knitter, pattern):
     for c in pattern:
         if c == '.':
             knitter.knit()
+        elif c == '-':
+            knitter.purl()
         elif c == 'o':
             knitter.increase_knit()
         elif c == '/':
@@ -18,7 +20,7 @@ def knit_pattern(knitter, pattern):
         elif c == 'M':
             knitter.decrease_two_knit(front='c')
         elif c == 'λ':
-            lace.decrease_two_knit(front='r')
+            knitter.decrease_two_knit(front='r')
 
 class TestLace(unittest.TestCase):
     def setUp(self):
@@ -31,7 +33,8 @@ class TestLace(unittest.TestCase):
         behind_answer  = [False, False, False, True, False] + 5 * [False]
 
         knit_pattern(self.knitter, pattern)
-        (offsets, behind) = self.knitter.compute_offsets()
+        offsets = self.knitter.compute_offsets()
+        behind = self.knitter.behind
 
         self.assertEqual(offsets, offset_answer)
         self.assertEqual(behind,  behind_answer)
@@ -42,7 +45,8 @@ class TestLace(unittest.TestCase):
         behind_answer  = [False, False, True, False, False] + 5 * [False]
 
         knit_pattern(self.knitter, pattern)
-        (offsets, behind) = self.knitter.compute_offsets()
+        offsets = self.knitter.compute_offsets()
+        behind = self.knitter.behind
 
         self.assertEqual(offsets, offset_answer)
         self.assertEqual(behind,  behind_answer)
@@ -53,7 +57,8 @@ class TestLace(unittest.TestCase):
         behind_answer  = [False, False, True, False, False] + 5 * [False]
 
         knit_pattern(self.knitter, pattern)
-        (offsets, behind) = self.knitter.compute_offsets()
+        offsets = self.knitter.compute_offsets()
+        behind = self.knitter.behind
 
         self.assertEqual(offsets, offset_answer)
         self.assertEqual(behind,  behind_answer)
@@ -64,7 +69,8 @@ class TestLace(unittest.TestCase):
         behind_answer  = [False, False, False, True, False] + 5 * [False]
 
         knit_pattern(self.knitter, pattern)
-        (offsets, behind) = self.knitter.compute_offsets()
+        offsets = self.knitter.compute_offsets()
+        behind = self.knitter.behind
 
         self.assertEqual(offsets, offset_answer)
         self.assertEqual(behind,  behind_answer)
@@ -75,18 +81,32 @@ class TestLace(unittest.TestCase):
         behind_answer  = [False, True, False, True, False] + 5 * [False]
 
         knit_pattern(self.knitter, pattern)
-        (offsets, behind) = self.knitter.compute_offsets()
+        offsets = self.knitter.compute_offsets()
+        behind = self.knitter.behind
 
         self.assertEqual(offsets, offset_answer)
         self.assertEqual(behind,  behind_answer)
 
-    def test_center_decrease(self):
+    def test_center_decrease_with_lopsided_increases(self):
         pattern = '.M.o.o....'
         offset_answer  = [0, 0, -1, -2, -2, -1, 0, 0, 0, 0]
-        behind_answer  = [False, False, True, True, False] + 5 * [False]
+        behind_answer  = [False, True, False, True, False] + 5 * [False]
 
         knit_pattern(self.knitter, pattern)
-        (offsets, behind) = self.knitter.compute_offsets()
+        offsets = self.knitter.compute_offsets()
+        behind = self.knitter.behind
+
+        self.assertEqual(offsets, offset_answer)
+        self.assertEqual(behind,  behind_answer)
+        
+    def test_left_double_decrease(self):
+        pattern = '.λ.o.o....'
+        offset_answer  = [0, 0, -1, -2, -2, -1, 0, 0, 0, 0]
+        behind_answer  = [False, True, True, False, False] + 5 * [False]
+
+        knit_pattern(self.knitter, pattern)
+        offsets = self.knitter.compute_offsets()
+        behind = self.knitter.behind
 
         self.assertEqual(offsets, offset_answer)
         self.assertEqual(behind,  behind_answer)
