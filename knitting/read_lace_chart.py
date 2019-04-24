@@ -37,6 +37,8 @@ def extract_pattern_from_grid(image, show_img=False):
         raise Exception('no squares found')
 
     grid_width = statistics.median(widths) + 2
+    if show_img:
+        print('grid_width: ' + str(grid_width))
 
     int_grid_width = 32
 
@@ -61,6 +63,10 @@ def extract_pattern_from_grid(image, show_img=False):
     dl = imutils.resize(dl, width=inner_grid_width)
     pl = cv2.imread('patterns/lace_chart_images/purl.png')
     pl = imutils.resize(pl, width=(inner_grid_width-6))
+    ldd = cv2.imread('patterns/lace_chart_images/left_double_decrease.jpg')
+    ldd = imutils.resize(ldd, width=(inner_grid_width))
+    cdd = cv2.imread('patterns/lace_chart_images/double_decrease.jpg')
+    cdd = imutils.resize(cdd, width=(inner_grid_width))
 
     res = cv2.matchTemplate(thresh, yo, cv2.TM_CCOEFF_NORMED)
     loc = np.where(res > match_threshold)
@@ -69,7 +75,7 @@ def extract_pattern_from_grid(image, show_img=False):
         y = int(pt[1] / grid_width)
         pattern_grid[x][y] = "o"
         cv2.rectangle(thresh, pt, (pt[0] + inner_grid_width, pt[1] + inner_grid_width), (0, 0, 255), 2)
-        
+
     res = cv2.matchTemplate(thresh, dr, cv2.TM_CCOEFF_NORMED)
     loc = np.where(res > match_threshold)
     for pt in zip(*loc[::-1]):
@@ -94,6 +100,22 @@ def extract_pattern_from_grid(image, show_img=False):
         pattern_grid[x][y] = "."
         cv2.rectangle(thresh, pt, (pt[0] + inner_grid_width, pt[1] + inner_grid_width), (255, 0, 255), 2)
 
+    res = cv2.matchTemplate(thresh, ldd, cv2.TM_CCOEFF_NORMED)
+    loc = np.where(res > match_threshold)
+    for pt in zip(*loc[::-1]):
+        x = int(pt[0] / grid_width)
+        y = int(pt[1] / grid_width)
+        pattern_grid[x][y] = "λ"
+        cv2.rectangle(thresh, pt, (pt[0] + inner_grid_width, pt[1] + inner_grid_width), (255, 255, 0), 2)
+
+    res = cv2.matchTemplate(thresh, cdd, cv2.TM_CCOEFF_NORMED)
+    loc = np.where(res > match_threshold)
+    for pt in zip(*loc[::-1]):
+        x = int(pt[0] / grid_width)
+        y = int(pt[1] / grid_width)
+        pattern_grid[x][y] = "M"
+        cv2.rectangle(thresh, pt, (pt[0] + inner_grid_width, pt[1] + inner_grid_width), (0, 255, 255), 2)
+
     if show_img:
         cv2.imshow("image", thresh)
         cv2.waitKey(0)
@@ -101,15 +123,13 @@ def extract_pattern_from_grid(image, show_img=False):
 
 def find_pattern_grid(image, show_img=False):
     image = cv2.copyMakeBorder(image, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=(255, 255, 255))
-    # image = imutils.resize(image, width=800)
+    image = imutils.resize(image, width=800)
     gray    = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     kernel = np.ones((3, 3), np.uint8)
     gray = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
     gray = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel)
-    # blurred = cv2.GaussianBlur(gray, (9, 9), 0);
-    thresh = gray
-    thresh = cv2.addWeighted(thresh, 2, thresh, 0, -40)
-    thresh  = cv2.threshold(thresh, 150, 255, cv2.THRESH_BINARY)[1]
+    gray = cv2.addWeighted(gray, 1.4, gray, 0, -50)
+    thresh  = cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY)[1]
     color_thresh = cv2.cvtColor(thresh, cv2.COLOR_GRAY2RGB)
 
     contours = cv2.findContours(thresh.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE);
@@ -131,16 +151,21 @@ def find_pattern_grid(image, show_img=False):
                 second_largest_contour = largest_contour
 
                 largest_area = area
-                largest_contour = c 
+                largest_contour = c
             elif area > second_largest_area:
                 second_largest_area    = area
                 second_largest_contour = c
 
+    cv2.drawContours(color_thresh, [largest_contour], 0, (255, 255, 0), 3)
     cv2.drawContours(color_thresh, [second_largest_contour], 0, (0, 255, 0), 3)
     rect = cv2.minAreaRect(second_largest_contour)
     box  = cv2.boxPoints(rect)
     box  = np.int0(box)
     cv2.drawContours(color_thresh, [box], 0, (0, 0, 255), 2)
+
+    if show_img:
+        cv2.imshow("color_thresh", color_thresh)
+        cv2.waitKey(0)
 
     angle = rect[2]
 
@@ -183,4 +208,3 @@ image = cv2.imread(args["image"])
 pattern_grid = find_pattern_grid(image)
 pattern = extract_pattern_from_grid(pattern_grid)
 print_pattern(pattern)
-
