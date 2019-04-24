@@ -53,22 +53,15 @@ class LaceKnitter():
 
     # increases and decreases
     def perform_transfers(self):
-        if len(self.width_modifications) <= 1:
-            return
         front_stitch_present = [False] * self.n
         back_stitch_waiting_list = [None] * self.n
 
         offsets = self.compute_offsets()
         (offset_amts, offset_stitches) = self.get_offset_to_stitch_map(offsets)
 
-        # print(self.width_modifications, file=stderr)
-        # print(offsets, file=stderr)
-        # print(offset_stitches[0], file=stderr)
-        # print("", file=stderr)
-
-        if len(offset_amts) > 1 or offset_amts[0] != 0:
+        if sum([abs(o) for o in offsets]) > 0:
             front_bed_stitches = [i for i in range(self.n) if self.stitch_beds[i] == 'f']
-            back_bed_stitches  = [i for i in range(self.n) if self.stitch_beds[i] == 'b']
+            back_bed_stitches  = [i for i in range(self.n) if self.stitches[i] == False]
             self.k.from_xfers('f', 'b', front_bed_stitches)
 
             for off in offset_amts:
@@ -93,16 +86,33 @@ class LaceKnitter():
 
             self.k.rack(0)
             self.k.from_xfers('f', 'b', back_bed_stitches)
+            self.stitch_beds = ['f'] * self.n
+            for i in range(self.n):
+                if self.stitches[i] == False:
+                    self.stitch_beds[i] = 'b'
+        else:
+            front_to_back_stitches = [i for i in range(self.n) if self.stitch_beds[i] == 'f' and self.stitches[i] == False]
+            back_to_front_stitches = [i for i in range(self.n) if self.stitch_beds[i] == 'b' and self.stitches[i] == True]
+            if len(front_to_back_stitches) > 0:
+                self.k.from_xfers('f', 'b', front_to_back_stitches)
+            if len(back_to_front_stitches) > 0:
+                self.k.from_xfers('b', 'f', back_to_front_stitches)
+            self.stitch_beds = ['f'] * self.n
+            for i in range(self.n):
+                if self.stitches[i] == False:
+                    self.stitch_beds[i] = 'b'
 
     def increase_knit(self, carrier=0):
-        self.current_hook += 1
+        self.stitches        += [True]
+        self.stitch_carriers += [carrier]
+        self.current_hook    += 1
 
     # front must be 'l' or 'r'
     def decrease_knit(self, front='l', carrier=0):
-        self.stitches          += [True]
-        self.stitch_carriers   += [carrier]
-        self.stitch_hooks      += 2 * [self.current_hook]
-        self.current_hook      += 1
+        self.stitches            += [True]
+        self.stitch_carriers     += [carrier]
+        self.stitch_hooks        += 2 * [self.current_hook]
+        self.current_hook        += 1
 
         if (front == 'l'):
             self.behind[self.current_stitch + 1] = True
@@ -113,10 +123,10 @@ class LaceKnitter():
 
     # front must be 'l', 'c', or 'r'
     def decrease_two_knit(self, front='c', carrier=0):
-        self.stitches          += [True]
-        self.stitch_carriers   += [carrier]
-        self.stitch_hooks      += 3 * [self.current_hook]
-        self.current_hook      += 1
+        self.stitches            += [True]
+        self.stitch_carriers     += [carrier]
+        self.stitch_hooks        += 3 * [self.current_hook]
+        self.current_hook        += 1
 
         if (front == 'l'):
             self.behind[self.current_stitch + 1] = True
@@ -131,18 +141,18 @@ class LaceKnitter():
         self.current_stitch    += 3
 
     def knit(self, n=1, carrier=0):
-        self.stitches          += n * [True]
-        self.stitch_carriers   += n * [carrier]
-        self.stitch_hooks      += list(range(self.current_hook, self.current_hook + n))
-        self.current_hook      += n
-        self.current_stitch    += 1
+        self.stitches            += n * [True]
+        self.stitch_carriers     += n * [carrier]
+        self.stitch_hooks        += list(range(self.current_hook, self.current_hook + n))
+        self.current_hook        += n
+        self.current_stitch      += n
 
     def purl(self, n=1, carrier=0):
-        self.stitches          += n * [False]
-        self.stitch_carriers   += n * [carrier]
-        self.stitch_hooks      += list(range(self.current_hook, self.current_hook + n))
-        self.current_hook      += n
-        self.current_stitch    += 1
+        self.stitches            += n * [False]
+        self.stitch_carriers     += n * [carrier]
+        self.stitch_hooks        += list(range(self.current_hook, self.current_hook + n))
+        self.current_hook        += n
+        self.current_stitch      += n
 
     def cast_on(self):
         self.k.cast_on('f', 0, self.n-1, 1)
