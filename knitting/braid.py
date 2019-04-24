@@ -1,54 +1,116 @@
 #!/usr/local/bin/python3
 
 from sys import argv, stderr
-from ribs import CabledKnitter
+from math import copysign
+from knitout import Knitout
 
 def usage():
-    print('Usage: ' + argv[0] + ' input_file.csv')
+    print('Usage: ' + argv[0] + ' input.braid')
 
-# if len(argv) != 2:
-    # usage()
-    # exit()
+if len(argv) != 2:
+    usage()
+    exit()
 
-left = list(range(0, 4))
-mid = list(range(4, 8))
-right = list(range(8, 12))
+reps = 3
+row_height = 6
+n = None
+swaps = []
+with open(argv[1]) as f:
+    n = int(f.readline()[2:-1])
+    for row in f:
+        swaps.append([int(i) for i in (row[:-1]).split()])
 
-def knit_alt_rows(knitter, n):
-    for i in range(n):
-        for c in range(len(knitter.k.carriers)):
-            knitter.new_row()
-            knitter.knit(knitter.n_hooks, c)
-            knitter.knit_row()
+strip_width = 4
+k = Knitout(use_presser=True)
+k.cast_on_single_carrier('f', 0, n * strip_width - 1)
+for i in range(3):
+    k.knits('-', 'f', range(n*strip_width-1, -1, -1), 0)
+    k.knits('+', 'f', range(0, n*strip_width), 0)
 
-def knit_plain_cable_rows(knitter, carrier_order, n):
-    for row in range(n):
-        # print(list(reversed(left)), file=stderr)
-        knitter.k.knits('+', 'f', left, [carrier_order[0]] * 4)
-        knitter.k.knits('-', 'f', list(reversed(left)), [carrier_order[0]] * 4)
-        knitter.k.knits('+', 'f', mid, [carrier_order[1]] * 4)
-        knitter.k.knits('-', 'f', list(reversed(mid)), [carrier_order[1]] * 4)
-        knitter.k.knits('+', 'f', right, [carrier_order[2]] * 4)
-        knitter.k.knits('-', 'f', list(reversed(right)), [carrier_order[2]] * 4)
+strip_hooks = []
+for i in range(n):
+    hooks = list(range(i * strip_width, (i+1) * strip_width))
+    reversed_hooks = hooks[::-1]
+    strip_hooks.append([h + 4 * i for h in hooks])
 
-knitter = CabledKnitter(n_hooks=12, carriers=[7, 8, 9])
-knitter.cast_on()
-knit_alt_rows(knitter, 3)
-carrier_order = [0, 1, 2]
-row_height = 2
+    k.inhook(0)
+    k.knits('-', 'f', reversed_hooks, 0)
+    k.knits('+', 'f', hooks, 0)
+    k.releasehook(0)
+    for j in range(reps * row_height * len(swaps)):
+        k.knits('-', 'f', reversed_hooks, 0)
+        k.knits('+', 'f', hooks, 0)
+    k.outhook(0)
+
+for i in range(1, n):
+    hooks = list(range(i * strip_width + (i-1)*strip_width, n*strip_width + (i-1)*strip_width))
+    k.from_xfers('f', 'b', hooks)
+    k.rack(strip_width)
+    k.from_xfers('b', 'f', hooks)
+    k.rack(0)
+
+# does a bunch of swaps assuming they all have the same sign
+def do_swaps(k, swaps, strip_hooks):
+    if not swaps:
+        return
+
+    front_hooks = []
+    back_hooks  = []
+    for s in swaps:
+        front_strip = abs(s)-1
+        if swaps[0] > 0:
+            back_strip = front_strip+1
+        else:
+            back_strip = front_strip-1
+
+        front_hooks += strip_hooks[front_strip]
+        back_hooks  += strip_hooks[back_strip]
+
+    offset = int(copysign(strip_width, swaps[0]))
+    k.from_xfers('f', 'b', front_hooks + back_hooks)
+    k.rack(offset)
+    k.from_xfers('b', 'f', front_hooks)
+    k.rack(0)
+    k.from_xfers('f', 'b', [i + offset for i in front_hooks])
+    k.rack(2 * offset)
+    k.drop('f', -5)
+    k.rack(offset)
+    k.from_xfers('b', 'f', [i + offset for i in front_hooks])
+
+
+    offset = int(copysign(strip_width, -swaps[0]))
+    k.rack(offset)
+    k.from_xfers('b', 'f', back_hooks)
+    k.rack(0)
+    k.from_xfers('f', 'b', [i + offset for i in back_hooks])
+    k.rack(2 * offset)
+    k.drop('f', -5)
+    k.rack(offset)
+    k.from_xfers('b', 'f', [i + offset for i in back_hooks])
+    k.rack(0)
+
+for i in range(reps):
+    for swap_row in swaps:
+        # swaps to the right
+        pos_swaps = [s for s in swap_row if s > 0]
+        do_swaps(k, pos_swaps, strip_hooks)
+        # swaps to the left
+        neg_swaps = [s for s in swap_row if s < 0]
+        print(neg_swaps, file=stderr)
+        do_swaps(k, neg_swaps, strip_hooks)
+
+for i in range(n-1, 0, -1):
+    hooks = list(range(i * strip_width + i*strip_width, n*strip_width + i*strip_width))
+    k.from_xfers('f', 'b', hooks)
+    k.rack(-strip_width)
+    k.from_xfers('b', 'f', hooks)
+    k.rack(0)
+
+k.inhook(0)
+k.knits('-', 'f', range(n*strip_width-1, -1, -1), 0)
+k.knits('+', 'f', range(0, n*strip_width), 0)
+k.releasehook(0)
 for i in range(4):
-    knit_plain_cable_rows(knitter, carrier_order, row_height)
-    knitter.k.miss('+', 'f', 13, carrier_order[0])
-    knitter.k.miss('+', 'f', 13, carrier_order[1])
-    knitter.swap_stitches(left, mid)
-    knitter.just_do_swaps()
-    carrier_order = [carrier_order[1], carrier_order[0], carrier_order[2]]
-
-    knit_plain_cable_rows(knitter, carrier_order, row_height)
-    knitter.swap_stitches(right, mid)
-    knitter.just_do_swaps()
-    carrier_order = [carrier_order[0], carrier_order[2], carrier_order[1]]
-
-knit_plain_cable_rows(knitter, carrier_order, row_height)
-knit_alt_rows(knitter, 5)
-knitter.end()
+    k.knits('-', 'f', range(n*strip_width-1, -1, -1), 0)
+    k.knits('+', 'f', range(0, n*strip_width), 0)
+k.outhook(0)
